@@ -103,27 +103,6 @@
                   last-claim-block: block-height}))
       (ok (var-get active-stakers-count)))))
 
-(define-public (withdraw-staked-tokens (withdrawal-amount uint))
-  (let ((user-balance (default-to {staked-amount: u0, earned-rewards: u0, last-claim-block: u0} 
-                                  (map-get? staker-balances tx-sender)))
-        (staked-tokens (get staked-amount user-balance))
-        (penalty-amount (if (< block-height (var-get pool-maturity-block))
-                           (/ (* withdrawal-amount (var-get early-withdrawal-penalty)) u100)
-                           u0))
-        (net-withdrawal (- withdrawal-amount penalty-amount)))
-    (begin
-      (try! (ensure-pool-operational))
-      (asserts! (>= staked-tokens withdrawal-amount) ERR_NO_STAKE_FOUND)
-      (asserts! (is-none (map-get? staker-lockup tx-sender)) ERR_LOCKUP_PERIOD_ACTIVE)
-      (var-set total-value-locked (- (var-get total-value-locked) withdrawal-amount))
-      (map-set staker-balances tx-sender 
-               {staked-amount: (- staked-tokens withdrawal-amount),
-                earned-rewards: (get earned-rewards user-balance),
-                last-claim-block: (get last-claim-block user-balance)})
-      (if (> penalty-amount u0)
-        (as-contract (stx-transfer? penalty-amount tx-sender PROTOCOL_OWNER))
-        (ok true))
-      (as-contract (stx-transfer? net-withdrawal tx-sender tx-sender)))))
 
 (define-public (finalize-farming-epoch)
   (let ((total-staked (var-get total-value-locked))
